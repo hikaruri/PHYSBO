@@ -3,7 +3,7 @@ import scipy.stats
 from .discrete.pareto import Pareto
 
 
-def EI(predictor, training, test, fmax=None):
+def EI(predictor, training, test, minimize=False, fmax=None):
     """
     Maximum expected improvement.
 
@@ -15,9 +15,11 @@ def EI(predictor, training, test, fmax=None):
             Training dataset. If already trained, the model does not use this.
     test: physbo.variable
             Inputs
+    minimize: bool
+        Search direction (default: False)
     fmax: float
-            Max value of posterior probability distribution.
-            If not set fmax, the max value of posterior mean of weights is set.
+            Max/Min value of posterior probability distribution.
+            If not set fmax, the max/min value of posterior mean of weights is set.
     Returns
     -------
     score: numpy.ndarray
@@ -26,16 +28,21 @@ def EI(predictor, training, test, fmax=None):
     fcov = predictor.get_post_fcov(training, test)
     fstd = np.sqrt(fcov)
 
-    if fmax is None:
-        fmax = np.max(predictor.get_post_fmean(training, training))
+    if minimize:
+        if fmax is None:
+            fmax = np.min(predictor.get_post_fmean(training, training))
+        temp1 = fmax - fmean
+    else:
+        if fmax is None:
+            fmax = np.max(predictor.get_post_fmean(training, training))
+        temp1 = fmean - fmax
 
-    temp1 = fmean - fmax
     temp2 = temp1 / fstd
     score = temp1 * scipy.stats.norm.cdf(temp2) + fstd * scipy.stats.norm.pdf(temp2)
     return score
 
 
-def PI(predictor, training, test, fmax=None):
+def PI(predictor, training, test, minimize=False, fmax=None):
     """
     Maximum probability of improvement.
 
@@ -47,9 +54,11 @@ def PI(predictor, training, test, fmax=None):
             Training dataset. If already trained, the model does not use this.
     test: physbo.variable
             Inputs
+    minimize: bool
+        Search direction (default: False)
     fmax: float
-            Max value of posterior probability distribution.
-            If not set fmax, the max value of posterior mean of weights is set.
+        Max/Min value of posterior probability distribution.
+        If not set fmax, the max/min value of posterior mean of weights is set.
     Returns
     -------
     score: numpy.ndarray
@@ -58,15 +67,20 @@ def PI(predictor, training, test, fmax=None):
     fcov = predictor.get_post_fcov(training, test)
     fstd = np.sqrt(fcov)
 
-    if fmax is None:
-        fmax = np.max(predictor.get_post_fmean(training, training))
+    if minimize:
+        if fmax is None:
+            fmax = np.min(predictor.get_post_fmean(training, training))
+        temp = (fmax - fmean) / fstd
+    else:
+        if fmax is None:
+            fmax = np.max(predictor.get_post_fmean(training, training))
+        temp = (fmean - fmax) / fstd
 
-    temp = (fmean - fmax) / fstd
     score = scipy.stats.norm.cdf(temp)
     return score
 
 
-def TS(predictor, training, test, alpha=1):
+def TS(predictor, training, test, minimize=False, alpha=1):
     """
     Thompson sampling (See Sec. 2.1 in Materials Discovery Volume 4, June 2016, Pages 18-21)
 
@@ -78,6 +92,8 @@ def TS(predictor, training, test, alpha=1):
             Training dataset. If already trained, the model does not use this.
     test: physbo.variable
             Inputs
+    minimize: bool
+        Search direction (default: False)
     alpha: float
             noise for sampling source
             (default: 1.0)
@@ -85,7 +101,11 @@ def TS(predictor, training, test, alpha=1):
     -------
     score: numpy.ndarray
     """
-    return predictor.get_post_samples(training, test, alpha=alpha)
+    score = predictor.get_post_samples(training, test, alpha=alpha)
+    if minimize:
+        return -score
+    else:
+        return score
 
 
 def HVPI(fmean, fstd, pareto):

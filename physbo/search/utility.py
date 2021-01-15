@@ -1,9 +1,12 @@
 import numpy as np
 
 
-def show_search_results(history, N):
+def show_search_results(history, N, minimize=False):
     n = history.total_num_search
-    index = np.argmax(history.fx[0:n])
+    if minimize:
+        index = np.argmin(history.fx[0:n])
+    else:
+        index = np.argmax(history.fx[0:n])
 
     if N == 1:
         print(

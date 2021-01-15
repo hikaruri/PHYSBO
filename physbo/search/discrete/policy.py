@@ -128,7 +128,7 @@ class policy:
         self.training.add(X=X, t=t, Z=Z)
 
     def random_search(
-        self, max_num_probes, num_search_each_probe=1, simulator=None, is_disp=True
+        self, max_num_probes, num_search_each_probe=1, simulator=None, is_disp=True, minimize=False
     ):
         """
         Performing random search.
@@ -142,6 +142,8 @@ class policy:
         simulator: callable
             Callable (function or object with ``__call__``) from action to t
             Here, action is an integer which represents the index of the candidate.
+        minimize: bool
+            Search direction (Used only for showing information) (default: False)
         is_disp: bool
             If true, process messages are outputted.
         Returns
@@ -177,7 +179,7 @@ class policy:
             self.write(action, t)
 
             if is_disp:
-                utility.show_search_results(self.history, N)
+                utility.show_search_results(self.history, N, minimize=minimize)
 
         return copy.deepcopy(self.history)
 
@@ -189,6 +191,7 @@ class policy:
         predictor=None,
         is_disp=True,
         simulator=None,
+        minimize=False,
         score="TS",
         interval=0,
         num_rand_basis=0,
@@ -212,6 +215,8 @@ class policy:
         simulator: callable
             Callable (function or object with ``__call__``) 
             Here, action is an integer which represents the index of the candidate.
+        minimize: bool
+            Search direction (default: False)
         score: str
             The type of aquision funciton.
             TS (Thompson Sampling), EI (Expected Improvement) and PI (Probability of Improvement) are available.
@@ -260,7 +265,7 @@ class policy:
 
             K = self.config.search.multi_probe_num_sampling
             alpha = self.config.search.alpha
-            action = self.get_actions(score, N, K, alpha)
+            action = self.get_actions(score, N, K, minimize=minimize, alpha=alpha)
 
             if simulator is None:
                 return action
@@ -269,11 +274,11 @@ class policy:
             self.write(action, t)
 
             if is_disp:
-                utility.show_search_results(self.history, N)
+                utility.show_search_results(self.history, N, minimize=minimize)
 
         return copy.deepcopy(self.history)
 
-    def get_score(self, mode, predictor=None, training=None, alpha=1):
+    def get_score(self, mode, predictor=None, training=None, minimize=False, alpha=1):
         """
         Getting score.
 
@@ -286,6 +291,8 @@ class policy:
             Base class is defined in physbo.predictor.
         training:physbo.variable
             Training dataset.
+        minimize: bool
+            Search direction (default: False)
         alpha: float
             Tuning parameter which is used if mode = TS.
             In TS, multi variation is tuned as np.random.multivariate_normal(mean, cov*alpha**2, size).
@@ -300,16 +307,16 @@ class policy:
 
         test = self.test.get_subset(actions)
         if mode == "EI":
-            f = physbo.search.score.EI(predictor, training, test)
+            f = physbo.search.score.EI(predictor, training, test, minimize=minimize)
         elif mode == "PI":
-            f = physbo.search.score.PI(predictor, training, test)
+            f = physbo.search.score.PI(predictor, training, test, minimize=minimize)
         elif mode == "TS":
-            f = physbo.search.score.TS(predictor, training, test, alpha)
+            f = physbo.search.score.TS(predictor, training, test, minimize=minimize, alpha=alpha)
         else:
             raise NotImplementedError("mode must be EI, PI or TS.")
         return f
 
-    def get_marginal_score(self, mode, chosen_actions, K, alpha):
+    def get_marginal_score(self, mode, chosen_actions, K, minimize=False, alpha=1.0):
         """
         Getting marginal scores.
 
@@ -322,9 +329,12 @@ class policy:
         chosen_actions: numpy.ndarray
             Array of selected actions.
         K: int
-            The total number of search candidates.
+            The number of samples to evaluate marginal score for each candidate
+        minimize: bool
+            Search direction (default: False)
         alpha: float
-            not used.
+            Tuning parameter which is used if mode = TS.
+            In TS, multi variation is tuned as np.random.multivariate_normal(mean, cov*alpha**2, size).
 
         Returns
         -------
@@ -355,10 +365,10 @@ class policy:
 
             predictor.update(train, virtual_train)
 
-            f[k, :] = self.get_score(mode, predictor, train)
+            f[k, :] = self.get_score(mode, predictor, train, minimize=minimize, alpha=alpha)
         return np.mean(f, axis=0)
 
-    def get_actions(self, mode, N, K, alpha):
+    def get_actions(self, mode, N, K, minimize=False, alpha=1.0):
         """
         Getting actions
 
@@ -372,6 +382,8 @@ class policy:
             The total number of actions to return.
         K: int
             The total number of samples to evaluate marginal score
+        minimize: bool
+            Search direction (default: False)
         alpha: float
             Tuning parameter which is used if mode = TS.
             In TS, multi variation is tuned as np.random.multivariate_normal(mean, cov*alpha**2, size).
@@ -381,7 +393,7 @@ class policy:
         chosen_actions: numpy.ndarray
             An N-dimensional array of actions selected in each search process.
         """
-        f = self.get_score(mode, self.predictor, self.training, alpha)
+        f = self.get_score(mode, self.predictor, self.training, minimize=minimize, alpha=alpha)
         champion, local_champion, local_index = self._find_champion(f)
         if champion == local_champion:
             self.actions = self.delete_actions(local_index)
@@ -390,7 +402,7 @@ class policy:
         chosen_actions[0] = champion
 
         for n in range(1, N):
-            f = self.get_marginal_score(mode, chosen_actions[0:n], K, alpha)
+            f = self.get_marginal_score(mode, chosen_actions[0:n], K, minimize=minimize, alpha=alpha)
             champion, local_champion, local_index = self._find_champion(f)
             if champion == local_champion:
                 self.actions = self.delete_actions(local_index)

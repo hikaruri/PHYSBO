@@ -39,7 +39,7 @@ class history:
         self.num_runs += 1
         self.total_num_search += N
 
-    def export_sequence_best_fx(self):
+    def export_sequence_best_fx(self, minimize=False):
         """
         Export fx and actions at each sequence.
         (The total number of data is num_runs.)
@@ -52,13 +52,16 @@ class history:
         best_fx = np.zeros(self.num_runs)
         best_actions = np.zeros(self.num_runs)
         for n in range(self.num_runs):
-            index = np.argmax(self.fx[0 : self.terminal_num_run[n]])
+            if minimize:
+                index = np.argmin(self.fx[0 : self.terminal_num_run[n]])
+            else:
+                index = np.argmax(self.fx[0 : self.terminal_num_run[n]])
             best_actions[n] = self.chosen_actions[index]
             best_fx[n] = self.fx[index]
 
         return best_fx, best_actions
 
-    def export_all_sequence_best_fx(self):
+    def export_all_sequence_best_fx(self, minimize=False):
         """
         Export all fx and actions at each sequence.
          (The total number of data is total_num_research.)
@@ -74,7 +77,12 @@ class history:
         best_actions[0] = self.chosen_actions[0]
 
         for n in range(1, self.total_num_search):
-            if best_fx[n - 1] < self.fx[n]:
+            if minimize:
+                b = best_fx[n - 1] > self.fx[n]
+            else:
+                b = best_fx[n - 1] < self.fx[n]
+
+            if b:
                 best_fx[n] = self.fx[n]
                 best_actions[n] = self.chosen_actions[n]
             else:
